@@ -334,11 +334,11 @@ export class DatabaseStorage implements IStorage {
       ));
 
     return {
-      occupiedRooms: occupiedRoomsResult.count,
-      totalRooms: totalRoomsResult.count,
-      checkInsToday: checkInsTodayResult.count,
-      checkOutsToday: checkOutsTodayResult.count,
-      revenueToday: revenueTodayResult.total,
+      occupiedRooms: Number(occupiedRoomsResult.count),
+      totalRooms: Number(totalRoomsResult.count),
+      checkInsToday: Number(checkInsTodayResult.count),
+      checkOutsToday: Number(checkOutsTodayResult.count),
+      revenueToday: Number(revenueTodayResult.total),
     };
   }
 }

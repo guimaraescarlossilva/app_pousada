@@ -149,7 +149,7 @@ export default function Dashboard() {
                 <div>
                   <p className="text-sm font-medium text-gray-600">Receita Hoje</p>
                   <p className="text-3xl font-bold text-gray-900 mt-2">
-                    R$ {stats?.revenueToday?.toFixed(2) || '0,00'}
+                    R$ {typeof stats?.revenueToday === 'number' ? stats.revenueToday.toFixed(2) : '0,00'}
                   </p>
                   <p className="text-sm text-success">Faturamento</p>
                 </div>
