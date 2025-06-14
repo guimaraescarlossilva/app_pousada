@@ -79,6 +79,17 @@ export default function CheckIn() {
     });
   };
 
+  const handleDateTimeChange = (field: 'checkInDate' | 'expectedCheckOutDate', value: string) => {
+    const date = new Date(value);
+    if (!isNaN(date.getTime())) {
+      setFormData({ ...formData, [field]: date });
+    }
+  };
+
+  const formatDateTime = (date: Date) => {
+    return date.toISOString().slice(0, 16);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.clientId === 0 || formData.roomId === 0) {
@@ -89,15 +100,15 @@ export default function CheckIn() {
       });
       return;
     }
-    createReservationMutation.mutate(formData);
-  };
 
-  const formatDateTime = (date: Date) => {
-    return date.toISOString().slice(0, 16);
-  };
+    // Ensure dates are valid Date objects
+    const submissionData = {
+      ...formData,
+      checkInDate: new Date(formData.checkInDate),
+      expectedCheckOutDate: new Date(formData.expectedCheckOutDate),
+    };
 
-  const handleDateTimeChange = (field: 'checkInDate' | 'expectedCheckOutDate', value: string) => {
-    setFormData({ ...formData, [field]: new Date(value) });
+    createReservationMutation.mutate(submissionData);
   };
 
   const getActiveReservationsForToday = () => {

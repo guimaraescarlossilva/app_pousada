@@ -133,7 +133,11 @@ export const insertServiceSchema = createInsertSchema(services).omit({
   id: true,
 });
 
-export const insertReservationSchema = createInsertSchema(reservations).omit({
+export const insertReservationSchema = createInsertSchema(reservations, {
+  checkInDate: z.coerce.date(),
+  expectedCheckOutDate: z.coerce.date(),
+  actualCheckOutDate: z.coerce.date().optional(),
+}).omit({
   id: true,
   createdAt: true,
 });
