@@ -60,6 +60,7 @@ export interface IStorage {
   // Product Sales
   getProductSales(reservationId?: number): Promise<ProductSale[]>;
   createProductSale(sale: InsertProductSale): Promise<ProductSale>;
+  deleteProductSale(id: number): Promise<boolean>;
 
   // Service Sales
   getServiceSales(reservationId?: number): Promise<ServiceSale[]>;
@@ -282,6 +283,17 @@ export class DatabaseStorage implements IStorage {
     // Update product stock
     await this.updateProductStock(sale.productId, -sale.quantity);
     return created;
+  }
+
+  async deleteProductSale(id: number): Promise<boolean> {
+    const sale = await db.select().from(productSales).where(eq(productSales.id, id)).limit(1);
+    if (sale.length === 0) return false;
+
+    // Restore product stock
+    await this.updateProductStock(sale[0].productId, sale[0].quantity);
+    
+    const result = await db.delete(productSales).where(eq(productSales.id, id));
+    return result.rowCount > 0;
   }
 
   // Service Sales

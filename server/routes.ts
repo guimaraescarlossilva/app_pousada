@@ -439,6 +439,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete("/api/product-sales/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const deleted = await storage.deleteProductSale(id);
+      if (!deleted) {
+        res.status(404).json({ message: "Venda não encontrada" });
+        return;
+      }
+      res.json({ message: "Venda excluída com sucesso" });
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao excluir venda" });
+    }
+  });
+
   // Service sales routes
   app.get("/api/service-sales", async (req, res) => {
     try {

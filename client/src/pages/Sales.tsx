@@ -264,6 +264,13 @@ export default function Sales() {
     return activeReservations?.find(r => r.roomId === roomId);
   };
 
+  const getOccupiedRooms = () => {
+    if (!rooms || !activeReservations) return [];
+    
+    const occupiedRoomIds = new Set(activeReservations.map(r => r.roomId));
+    return rooms.filter(room => occupiedRoomIds.has(room.id));
+  };
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <TopBar title="Vendas" subtitle="Gerenciar vendas de produtos e serviços" />
@@ -319,7 +326,7 @@ export default function Sales() {
                               <SelectValue placeholder="Selecione um quarto" />
                             </SelectTrigger>
                             <SelectContent>
-                              {rooms?.filter(room => room.status === 'occupied').map((room) => (
+                              {getOccupiedRooms().map((room) => (
                                 <SelectItem key={room.id} value={room.id.toString()}>
                                   Quarto {room.number} - {room.type}
                                 </SelectItem>
