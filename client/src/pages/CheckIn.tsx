@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, UserCheck, Calendar, Clock } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { Client, Room, InsertReservation } from "@shared/schema";
+import type { Client, Room, InsertReservation, Reservation } from "@shared/schema";
 
 export default function CheckIn() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -35,7 +35,7 @@ export default function CheckIn() {
     queryKey: ['/api/rooms/available'],
   });
 
-  const { data: activeReservations, isLoading: reservationsLoading } = useQuery({
+  const { data: activeReservations, isLoading: reservationsLoading } = useQuery<Reservation[]>({
     queryKey: ['/api/reservations/active'],
   });
 
@@ -81,9 +81,41 @@ export default function CheckIn() {
 
   const handleDateTimeChange = (field: 'checkInDate' | 'expectedCheckOutDate', value: string) => {
     const date = new Date(value);
-    if (!isNaN(date.getTime())) {
-      setFormData({ ...formData, [field]: date });
+    if (isNaN(date.getTime())) return;
+
+    if (field === 'checkInDate') {
+      // For check-in date, ensure it's not before today
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (date < today) {
+        toast({
+          title: "Data inválida",
+          description: "A data de check-in não pode ser anterior a hoje.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // If check-out date is before new check-in date, update it
+      if (formData.expectedCheckOutDate <= date) {
+        const newCheckOut = new Date(date);
+        newCheckOut.setDate(newCheckOut.getDate() + 1);
+        setFormData({ ...formData, checkInDate: date, expectedCheckOutDate: newCheckOut });
+        return;
+      }
+    } else {
+      // For check-out date, ensure it's after check-in date
+      if (date <= formData.checkInDate) {
+        toast({
+          title: "Data inválida",
+          description: "A data de check-out deve ser posterior à data de check-in.",
+          variant: "destructive",
+        });
+        return;
+      }
     }
+
+    setFormData({ ...formData, [field]: date });
   };
 
   const formatDateTime = (date: Date) => {

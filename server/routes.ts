@@ -345,10 +345,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/reservations", async (req, res) => {
     try {
       const reservationData = insertReservationSchema.parse(req.body);
+      
+      // Validate check-in and check-out dates
+      const checkInDate = new Date(reservationData.checkInDate);
+      const checkOutDate = new Date(reservationData.expectedCheckOutDate);
+      
+      if (checkInDate >= checkOutDate) {
+        res.status(400).json({ 
+          message: "A data de check-in deve ser anterior à data de check-out" 
+        });
+        return;
+      }
+
+      // Check if room is available for the requested dates
+      const existingReservations = await storage.getActiveReservations();
+      const conflictingReservation = existingReservations.find(r => 
+        r.roomId === reservationData.roomId &&
+        r.status === "active" &&
+        (
+          (checkInDate >= new Date(r.checkInDate) && checkInDate < new Date(r.expectedCheckOutDate)) ||
+          (checkOutDate > new Date(r.checkInDate) && checkOutDate <= new Date(r.expectedCheckOutDate)) ||
+          (checkInDate <= new Date(r.checkInDate) && checkOutDate >= new Date(r.expectedCheckOutDate))
+        )
+      );
+
+      if (conflictingReservation) {
+        res.status(400).json({ 
+          message: "O quarto já está reservado para este período" 
+        });
+        return;
+      }
+
       const reservation = await storage.createReservation(reservationData);
       
-      // Update room status to occupied
-      await storage.updateRoom(reservationData.roomId, { status: "occupied" });
+      // Only update room status to occupied if check-in is today or in the past
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (checkInDate <= today) {
+        await storage.updateRoom(reservationData.roomId, { status: "occupied" });
+      }
       
       res.status(201).json(reservation);
     } catch (error) {

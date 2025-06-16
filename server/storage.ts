@@ -161,7 +161,27 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAvailableRooms(): Promise<Room[]> {
-    return await db.select().from(rooms).where(eq(rooms.status, "available"));
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Get all rooms that are not in maintenance
+    const allRooms = await db.select().from(rooms).where(sql`${rooms.status} != 'maintenance'`);
+    
+    // Get all active reservations
+    const activeReservations = await db
+      .select()
+      .from(reservations)
+      .where(and(
+        eq(reservations.status, "active"),
+        sql`${reservations.checkInDate} <= ${today}`,
+        sql`${reservations.expectedCheckOutDate} > ${today}`
+      ));
+
+    // Get IDs of rooms that are currently occupied
+    const occupiedRoomIds = new Set(activeReservations.map(r => r.roomId));
+
+    // Filter out occupied rooms
+    return allRooms.filter(room => !occupiedRoomIds.has(room.id));
   }
 
   // Products
