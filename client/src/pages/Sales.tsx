@@ -10,14 +10,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, ShoppingCart, ConciergeBell, Package } from "lucide-react";
+import { Plus, ShoppingCart, ConciergeBell, Package, Edit, Trash2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { Product, Service, Reservation, InsertProductSale, InsertServiceSale } from "@shared/schema";
+import type { Product, Service, Reservation, InsertProductSale, InsertServiceSale, Room } from "@shared/schema";
 
 export default function Sales() {
   const [activeTab, setActiveTab] = useState("products");
   const [isProductDialogOpen, setIsProductDialogOpen] = useState(false);
   const [isServiceDialogOpen, setIsServiceDialogOpen] = useState(false);
+  const [editingSale, setEditingSale] = useState<any>(null);
   
   const [productFormData, setProductFormData] = useState<InsertProductSale>({
     reservationId: 0,
@@ -44,15 +45,19 @@ export default function Sales() {
     queryKey: ['/api/services'],
   });
 
+  const { data: rooms } = useQuery<Room[]>({
+    queryKey: ['/api/rooms'],
+  });
+
   const { data: activeReservations } = useQuery<Reservation[]>({
     queryKey: ['/api/reservations/active'],
   });
 
-  const { data: productSales } = useQuery({
+  const { data: productSales } = useQuery<any[]>({
     queryKey: ['/api/product-sales'],
   });
 
-  const { data: serviceSales } = useQuery({
+  const { data: serviceSales } = useQuery<any[]>({
     queryKey: ['/api/service-sales'],
   });
 
@@ -75,6 +80,51 @@ export default function Sales() {
       toast({
         title: "Erro",
         description: "Erro ao registrar venda. Tente novamente.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateProductSaleMutation = useMutation({
+    mutationFn: async ({ id, saleData }: { id: number; saleData: Partial<InsertProductSale> }) => {
+      const response = await apiRequest("PUT", `/api/product-sales/${id}`, saleData);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/product-sales'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+      setIsProductDialogOpen(false);
+      resetProductForm();
+      toast({
+        title: "Sucesso",
+        description: "Venda atualizada com sucesso!",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Erro",
+        description: "Erro ao atualizar venda. Tente novamente.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteProductSaleMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/product-sales/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/product-sales'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+      toast({
+        title: "Sucesso",
+        description: "Venda excluída com sucesso!",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Erro",
+        description: "Erro ao excluir venda. Tente novamente.",
         variant: "destructive",
       });
     },
@@ -111,6 +161,7 @@ export default function Sales() {
       unitPrice: "0",
       totalPrice: "0",
     });
+    setEditingSale(null);
   };
 
   const resetServiceForm = () => {
@@ -127,12 +178,20 @@ export default function Sales() {
     if (productFormData.reservationId === 0 || productFormData.productId === 0) {
       toast({
         title: "Erro",
-        description: "Selecione uma reserva e um produto.",
+        description: "Selecione um quarto e um produto.",
         variant: "destructive",
       });
       return;
     }
-    createProductSaleMutation.mutate(productFormData);
+
+    if (editingSale) {
+      updateProductSaleMutation.mutate({ 
+        id: editingSale.id, 
+        saleData: productFormData 
+      });
+    } else {
+      createProductSaleMutation.mutate(productFormData);
+    }
   };
 
   const handleServiceSubmit = (e: React.FormEvent) => {
@@ -183,6 +242,28 @@ export default function Sales() {
     }
   };
 
+  const handleEditSale = (sale: any) => {
+    setEditingSale(sale);
+    setProductFormData({
+      reservationId: sale.reservationId,
+      productId: sale.productId,
+      quantity: sale.quantity,
+      unitPrice: sale.unitPrice,
+      totalPrice: sale.totalPrice,
+    });
+    setIsProductDialogOpen(true);
+  };
+
+  const handleDeleteSale = (id: number) => {
+    if (confirm("Tem certeza que deseja excluir esta venda?")) {
+      deleteProductSaleMutation.mutate(id);
+    }
+  };
+
+  const getReservationForRoom = (roomId: number) => {
+    return activeReservations?.find(r => r.roomId === roomId);
+  };
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <TopBar title="Vendas" subtitle="Gerenciar vendas de produtos e serviços" />
@@ -217,22 +298,30 @@ export default function Sales() {
                     </DialogTrigger>
                     <DialogContent className="max-w-md">
                       <DialogHeader>
-                        <DialogTitle>Nova Venda de Produto</DialogTitle>
+                        <DialogTitle>
+                          {editingSale ? "Editar Venda de Produto" : "Nova Venda de Produto"}
+                        </DialogTitle>
                       </DialogHeader>
                       <form onSubmit={handleProductSubmit} className="space-y-4">
                         <div>
-                          <Label htmlFor="reservationId">Reserva/Quarto</Label>
+                          <Label htmlFor="roomId">Quarto</Label>
                           <Select
                             value={productFormData.reservationId.toString()}
-                            onValueChange={(value) => setProductFormData({ ...productFormData, reservationId: parseInt(value) })}
+                            onValueChange={(value) => {
+                              const roomId = parseInt(value);
+                              const reservation = getReservationForRoom(roomId);
+                              if (reservation) {
+                                setProductFormData({ ...productFormData, reservationId: reservation.id });
+                              }
+                            }}
                           >
                             <SelectTrigger>
-                              <SelectValue placeholder="Selecione uma reserva" />
+                              <SelectValue placeholder="Selecione um quarto" />
                             </SelectTrigger>
                             <SelectContent>
-                              {activeReservations?.map((reservation) => (
-                                <SelectItem key={reservation.id} value={reservation.id.toString()}>
-                                  Reserva #{reservation.id}
+                              {rooms?.filter(room => room.status === 'occupied').map((room) => (
+                                <SelectItem key={room.id} value={room.id.toString()}>
+                                  Quarto {room.number} - {room.type}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -299,9 +388,9 @@ export default function Sales() {
                           </Button>
                           <Button 
                             type="submit" 
-                            disabled={createProductSaleMutation.isPending}
+                            disabled={createProductSaleMutation.isPending || updateProductSaleMutation.isPending}
                           >
-                            Registrar Venda
+                            {editingSale ? "Atualizar Venda" : "Registrar Venda"}
                           </Button>
                         </div>
                       </form>
@@ -314,24 +403,49 @@ export default function Sales() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Data</TableHead>
-                      <TableHead>Reserva</TableHead>
+                      <TableHead>Quarto</TableHead>
                       <TableHead>Produto</TableHead>
                       <TableHead>Quantidade</TableHead>
                       <TableHead>Valor Unit.</TableHead>
                       <TableHead>Total</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {productSales?.map((sale: any) => (
-                      <TableRow key={sale.id}>
-                        <TableCell>{new Date(sale.saleDate).toLocaleDateString('pt-BR')}</TableCell>
-                        <TableCell>#{sale.reservationId}</TableCell>
-                        <TableCell>{products?.find(p => p.id === sale.productId)?.name || 'N/A'}</TableCell>
-                        <TableCell>{sale.quantity}</TableCell>
-                        <TableCell>R$ {parseFloat(sale.unitPrice).toFixed(2)}</TableCell>
-                        <TableCell>R$ {parseFloat(sale.totalPrice).toFixed(2)}</TableCell>
-                      </TableRow>
-                    )) || []}
+                    {productSales?.map((sale: any) => {
+                      const reservation = activeReservations?.find(r => r.id === sale.reservationId);
+                      const room = rooms?.find(r => r.id === reservation?.roomId);
+                      
+                      return (
+                        <TableRow key={sale.id}>
+                          <TableCell>{new Date(sale.saleDate).toLocaleDateString('pt-BR')}</TableCell>
+                          <TableCell>Quarto {room?.number || 'N/A'}</TableCell>
+                          <TableCell>{products?.find(p => p.id === sale.productId)?.name || 'N/A'}</TableCell>
+                          <TableCell>{sale.quantity}</TableCell>
+                          <TableCell>R$ {parseFloat(sale.unitPrice).toFixed(2)}</TableCell>
+                          <TableCell>R$ {parseFloat(sale.totalPrice).toFixed(2)}</TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end space-x-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleEditSale(sale)}
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleDeleteSale(sale.id)}
+                                disabled={deleteProductSaleMutation.isPending}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </CardContent>
