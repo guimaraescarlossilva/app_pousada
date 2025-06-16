@@ -199,7 +199,7 @@ export default function Sales() {
     if (serviceFormData.reservationId === 0 || serviceFormData.serviceId === 0) {
       toast({
         title: "Erro",
-        description: "Selecione uma reserva e um serviço.",
+        description: "Selecione um quarto e um serviço.",
         variant: "destructive",
       });
       return;
@@ -480,18 +480,24 @@ export default function Sales() {
                       </DialogHeader>
                       <form onSubmit={handleServiceSubmit} className="space-y-4">
                         <div>
-                          <Label htmlFor="reservationId">Reserva/Quarto</Label>
+                          <Label htmlFor="roomId">Quarto</Label>
                           <Select
                             value={serviceFormData.reservationId.toString()}
-                            onValueChange={(value) => setServiceFormData({ ...serviceFormData, reservationId: parseInt(value) })}
+                            onValueChange={(value) => {
+                              const roomId = parseInt(value);
+                              const reservation = getReservationForRoom(roomId);
+                              if (reservation) {
+                                setServiceFormData({ ...serviceFormData, reservationId: reservation.id });
+                              }
+                            }}
                           >
                             <SelectTrigger>
-                              <SelectValue placeholder="Selecione uma reserva" />
+                              <SelectValue placeholder="Selecione um quarto" />
                             </SelectTrigger>
                             <SelectContent>
-                              {activeReservations?.map((reservation) => (
-                                <SelectItem key={reservation.id} value={reservation.id.toString()}>
-                                  Reserva #{reservation.id}
+                              {getOccupiedRooms().map((room) => (
+                                <SelectItem key={room.id} value={room.id.toString()}>
+                                  Quarto {room.number} - {room.type}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -561,7 +567,7 @@ export default function Sales() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Data</TableHead>
-                      <TableHead>Reserva</TableHead>
+                      <TableHead>Quarto</TableHead>
                       <TableHead>Serviço</TableHead>
                       <TableHead>Valor</TableHead>
                       <TableHead>Agendado para</TableHead>
@@ -569,27 +575,32 @@ export default function Sales() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {serviceSales?.map((sale: any) => (
-                      <TableRow key={sale.id}>
-                        <TableCell>{new Date(sale.saleDate).toLocaleDateString('pt-BR')}</TableCell>
-                        <TableCell>#{sale.reservationId}</TableCell>
-                        <TableCell>{services?.find(s => s.id === sale.serviceId)?.name || 'N/A'}</TableCell>
-                        <TableCell>R$ {parseFloat(sale.price).toFixed(2)}</TableCell>
-                        <TableCell>
-                          {sale.scheduledDate ? new Date(sale.scheduledDate).toLocaleDateString('pt-BR') : '-'}
-                        </TableCell>
-                        <TableCell>
-                          <span className={`px-2 py-1 rounded-full text-xs ${
-                            sale.status === 'completed' ? 'bg-green-100 text-green-800' :
-                            sale.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                            'bg-yellow-100 text-yellow-800'
-                          }`}>
-                            {sale.status === 'completed' ? 'Concluído' :
-                             sale.status === 'cancelled' ? 'Cancelado' : 'Pendente'}
-                          </span>
-                        </TableCell>
-                      </TableRow>
-                    )) || []}
+                    {serviceSales?.map((sale: any) => {
+                      const reservation = activeReservations?.find(r => r.id === sale.reservationId);
+                      const room = rooms?.find(r => r.id === reservation?.roomId);
+                      
+                      return (
+                        <TableRow key={sale.id}>
+                          <TableCell>{new Date(sale.saleDate).toLocaleDateString('pt-BR')}</TableCell>
+                          <TableCell>Quarto {room?.number || 'N/A'}</TableCell>
+                          <TableCell>{services?.find(s => s.id === sale.serviceId)?.name || 'N/A'}</TableCell>
+                          <TableCell>R$ {parseFloat(sale.price).toFixed(2)}</TableCell>
+                          <TableCell>
+                            {sale.scheduledDate ? new Date(sale.scheduledDate).toLocaleDateString('pt-BR') : '-'}
+                          </TableCell>
+                          <TableCell>
+                            <span className={`px-2 py-1 rounded-full text-xs ${
+                              sale.status === 'completed' ? 'bg-green-100 text-green-800' :
+                              sale.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                              'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {sale.status === 'completed' ? 'Concluído' :
+                               sale.status === 'cancelled' ? 'Cancelado' : 'Pendente'}
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </CardContent>
